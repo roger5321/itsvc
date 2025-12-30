@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資訊設備報修系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8f9fa; padding-top: 20px; }
+        .container { max-width: 800px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .loading { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#form-pane" type="button">📝 我要報修</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-pane" type="button" onclick="loadStats()">📊 後台統計</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="form-pane">
+            <h2 class="text-center mb-4">資訊報修單</h2>
+            <form id="repairForm">
+                <div class="mb-3">
+                    <label class="form-label">姓名</label>
+                    <input type="text" class="form-control" name="name" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">部門</label>
+                    <select class="form-select" name="dept">
+                        <option value="業務部">業務部</option>
+                        <option value="研發部">研發部</option>
+                        <option value="行政部">行政部</option>
+                        <option value="生產部">生產部</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">問題類型</label>
+                    <select class="form-select" name="type">
+                        <option value="電腦硬體">電腦硬體 (無法開機、藍底白字)</option>
+                        <option value="網路連線">網路連線 (無法上網、Wi-Fi)</option>
+                        <option value="軟體系統">軟體系統 (Office, ERP, Mail)</option>
+                        <option value="印表機">印表機/事務機</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">問題描述</label>
+                    <textarea class="form-control" name="desc" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">提交報修</button>
+            </form>
+            <div id="msg" class="alert mt-3" style="display:none;"></div>
+        </div>
+
+        <div class="tab-pane fade" id="stats-pane">
+            <h2 class="text-center mb-4">報修類型統計</h2>
+            <div style="height: 400px;">
+                <canvas id="myChart"></canvas>
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-secondary btn-sm" onclick="loadStats()">重新整理數據</button>
+                <a href="#" id="sheetLink" target="_blank" class="btn btn-success btn-sm">前往 Google Sheets 管理資料</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // ★★★ 請將下方的 URL 替換成你部署 Google Apps Script 後取得的 Web App URL ★★★
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxbEHMM6-Q3W5dR1eeUc3w7PVJyHRtKKNWC3uMWwl80GsDlkSe0J76WWXP2NW76Z_zi/exec';
+    
+    // 設定 Google Sheet 連結供管理員使用
+    document.getElementById('sheetLink').href = "https://docs.google.com/spreadsheets/d/AKfycbxbEHMM6-Q3W5dR1eeUc3w7PVJyHRtKKNWC3uMWwl80GsDlkSe0J76WWXP2NW76Z_zi";
+
+    // 1. 處理表單提交
+    const form = document.getElementById('repairForm');
+    const msg = document.getElementById('msg');
+
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        msg.style.display = 'block';
+        msg.className = 'alert alert-info';
+        msg.innerText = '資料傳送中...';
+        
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            mode: 'no-cors' // Google Script 跨域限制，使用 no-cors
+        })
+        .then(() => {
+            msg.className = 'alert alert-success';
+            msg.innerText = '報修成功！資訊人員將盡快處理。';
+            form.reset();
+        })
+        .catch(error => {
+            msg.className = 'alert alert-danger';
+            msg.innerText = '發生錯誤，請稍後再試。';
+            console.error('Error:', error);
+        });
+    });
+
+    // 2. 載入統計數據
+    let myChart = null;
+
+    function loadStats() {
+        fetch(SCRIPT_URL)
+        .then(response => response.json())
+        .then(data => {
+            if(data.result === 'success') {
+                renderChart(data.stats);
+            }
+        });
+    }
+
+    function renderChart(stats) {
+        const ctx = document.getElementById('myChart');
+        const labels = Object.keys(stats);
+        const values = Object.values(stats);
+
+        if (myChart) {
+            myChart.destroy();
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'bar', // 或 'pie' 圓餅圖
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '報修件數',
+                    data: values,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)',
+                        'rgba(153, 102, 255, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

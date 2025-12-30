@@ -57,10 +57,20 @@
                         <option value="其他">其他</option>
                     </select>
                 </div>
+
                 <div class="mb-3">
                     <label class="form-label">問題描述</label>
                     <textarea class="form-control" name="desc" rows="3" required></textarea>
                 </div>
+				<div class="mb-3">
+					<label class="form-label">姓名</label>
+					<input type="text" class="form-control" name="name" required>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label">Email (選填，用於接收處理進度)</label>
+					<input type="email" class="form-control" name="email" placeholder="name@company.com">
+				</div>
                 <button type="submit" class="btn btn-primary w-100">提交報修</button>
             </form>
             <div id="msg" class="alert mt-3" style="display:none;"></div>
